@@ -175,7 +175,8 @@ class DecoderWithoutAttention(DecoderBase):
         #   t=0
         # 2. Relevant pytorch functions: torch.cat
         split = self.hidden_state_size // 2
-        forward_h = h[F_lens - 1, torch.arange(F_lens.size(0), device=h.device), :split]
+        cuda = h.device
+        forward_h = h[F_lens - 1, torch.arange(F_lens.size(0), device=cuda), :split]
         backward_h = h[0, :, split:]
 
         return torch.cat([forward_h.squeeze(), backward_h.squeeze()], dim=1)
@@ -204,7 +205,7 @@ class DecoderWithoutAttention(DecoderBase):
                         htilde_tm1[1][:, :self.hidden_state_size])
         else:
             htilde_tm1 = htilde_tm1[:, :self.hidden_state_size]
-        return self.cell(xtilde_t, htilde_tm1)[0]
+        return self.cell(xtilde_t, htilde_tm1)
 
     def get_current_logits(self, htilde_t):
         # Recall:
