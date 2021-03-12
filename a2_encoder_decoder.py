@@ -315,7 +315,7 @@ class DecoderWithAttention(DecoderWithoutAttention):
         #
         # Hint:
         # Relevant pytorch functions: torch.nn.functional.cosine_similarity
-        h_base = htilde_t.unsqueeze(0)
+        h_base = htilde_t.unsqueeze(dim=0)
         return torch.nn.functional.cosine_similarity(h_base, h, dim=2)
 
 class DecoderWithMultiHeadAttention(DecoderWithAttention):
@@ -340,7 +340,16 @@ class DecoderWithMultiHeadAttention(DecoderWithAttention):
         #    should not be lists!
         # 5. Relevant pytorch module: torch.nn.Linear (note: set bias=False!)
         # 6. You do *NOT* need self.heads at this point
-        assert False, "Fill me"
+        size = self.hidden_state_size
+        self.W = torch.nn.Linear(in_features=size,
+                                out_features=size,
+                                bias=False)
+        self.Wtilde = torch.nn.Linear(in_features=size,
+                                    out_features=size,
+                                    bias=False)
+        self.Q = torch.nn.Linear(in_features=size,
+                                out_features=size,
+                                bias=False)
 
     def attend(self, htilde_t, h, F_lens):
         # Hints:
@@ -353,7 +362,18 @@ class DecoderWithMultiHeadAttention(DecoderWithAttention):
         #   tensor([1,2,3,4]).repeat(2) will output tensor([1,2,3,4,1,2,3,4]).
         #   tensor([1,2,3,4]).repeat_interleave(2) will output
         #   tensor([1,1,2,2,3,3,4,4]), just like numpy.repeat.
-        assert False, "Fill me"
+        h_n = self.W(h)
+        htilde_n = self.Wtilde(htilde_t)
+        mod_f_lens = F_lens.repeat_interleave(self.heads)
+
+        new_shape = [h.shape[1]*self.heads, h.shape[-1]/self.heads]
+        new_h = h_n.view(-1,new_shape[0],new_shape[1])
+        new_htilde = htilde_n.view(new_shape[0],new_shape[1])
+
+        temp_c = super().attend(new_htilde, new_h, mod_f_lens)
+        c_t = temp_c.view(h.shape[1],-1)
+        c_t = self.Q(c_t)
+        return c_t
 
 class EncoderDecoder(EncoderDecoderBase):
 
