@@ -96,7 +96,6 @@ class Encoder(EncoderBase):
         #   torch.nn.utils.rnn.{pad_packed,pack_padded}_sequence
         x = torch.nn.utils.rnn.pack_padded_sequence(x, F_lens, enforce_sorted=False)
         outputs, _ = self.rnn.forward(x)
-        # now pad
         outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, padding_value=h_pad)
         return outputs
 
@@ -150,8 +149,8 @@ class DecoderWithoutAttention(DecoderBase):
         #   is either initialized, or t > 1.
         # 4. The output of an LSTM cell is a tuple (h, c), but a GRU cell or an
         #   RNN cell will only output h.
-        xtilde_t = self.get_current_rnn_input(E_tm1, htilde_tm1, h, F_lens)
-        h_t = self.get_current_hidden_state(xtilde_t, htilde_tm1)
+        inp = self.get_current_rnn_input(E_tm1, htilde_tm1, h, F_lens)
+        h_t = self.get_current_hidden_state(inp, htilde_tm1)
         if self.cell_type == "lstm":
             logits_t = self.get_current_logits(h_t[0])
         else:
@@ -179,7 +178,13 @@ class DecoderWithoutAttention(DecoderBase):
         forward_h = h[F_lens - 1, torch.arange(F_lens.size(0), device=cuda), :split]
         backward_h = h[0, :, split:]
 
-        return torch.cat([forward_h.squeeze(), backward_h.squeeze()], dim=1)
+        squeezed_f_h = forward_h.squeeze()
+        squeezed_b_h = backward_h.squeeze()
+
+        final_hidden = [squeezed_f_h, squeezed_b_h]
+        final_hidden = torch.cat(final_hidden, dim=1)
+
+        return final_hidden
 
     def get_current_rnn_input(self, E_tm1, htilde_tm1, h, F_lens):
         # Recall:
@@ -189,11 +194,10 @@ class DecoderWithoutAttention(DecoderBase):
         #   F_lens is of size (M,)
         #   xtilde_t (output) is of size (M, Itilde)
         cuda = h.device
-        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]).to(cuda),
-                                    torch.tensor([0.]).to(cuda),
-                                    torch.tensor([1.]).to(cuda)).to(cuda)
-        masked_x = self.embedding(E_tm1) * mask.view(-1, 1)
-        return masked_x
+        mask = torch.where(E_tm1 != torch.tensor([self.pad_id]).to(cuda),
+                                    torch.tensor([1.]).to(cuda),
+                                    torch.tensor([0.]).to(cuda)).to(cuda)
+        return self.embedding(E_tm1) * mask.view(-1, 1)
 
     def get_current_hidden_state(self, xtilde_t, htilde_tm1):
         # Recall:
@@ -255,9 +259,9 @@ class DecoderWithAttention(DecoderWithoutAttention):
     def get_current_rnn_input(self, E_tm1, htilde_tm1, h, F_lens):
         # Hint: Use attend() for c_t
         cuda = h.device
-        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]).to(cuda),
-                            torch.tensor([0.]).to(cuda),
-                            torch.tensor([1.]).to(cuda)).to(cuda)
+        mask = torch.where(E_tm1 != torch.tensor([self.pad_id]).to(cuda),
+                            torch.tensor([1.]).to(cuda),
+                            torch.tensor([0.]).to(cuda)).to(cuda)
         unmasked_input = self.embedding(E_tm1)
         if self.cell_type == 'lstm':
             htilde_tm1 = htilde_tm1[0]
@@ -293,8 +297,8 @@ class DecoderWithAttention(DecoderWithoutAttention):
         Hint: Use get_attention_weights() to calculate alpha_t.
         '''
         a_t = self.get_attention_weights(htilde_t, h, F_lens)
-        c_t = torch.bmm(h.permute(1,2,0), a_t.transpose(0, 1).unsqueeze(2)).squeeze() 
-        return c_t
+        extra_dim_c_t = torch.bmm(h.permute(1,2,0), a_t.transpose(0, 1).unsqueeze(2)) 
+        return extra_dim_c_t.squeeze()
 
     def get_attention_weights(self, htilde_t, h, F_lens):
         # DO NOT MODIFY! Calculates attention weights, ensuring padded terms
@@ -446,7 +450,7 @@ class EncoderDecoder(EncoderDecoderBase):
         #   torch.{flatten, topk, unsqueeze, expand_as, gather, cat}
         # 2. If you flatten a two-dimensional array of size z of (A, B),
         #   then the element z[a, b] maps to z'[a*B + b]
-        N, K, V = logpy_t.size()
+        M, K, V = logpy_t.size()
 
         pkss = logpb_tm1.unsqueeze(-1)
         pkss = pkss + logpy_t
@@ -467,7 +471,7 @@ class EncoderDecoder(EncoderDecoderBase):
         b_tm1_1 = b_tm1_1.gather(index=divided_idxs.unsqueeze(0).expand_as(b_tm1_1),
                                 dim=2)
         lst = []
-        if self.cell_type == 'lstm':
+        if self.cell_type == "lstm":
             lst.append(htilde_t[0])
             lst.append(htilde_t[1])
         else:
@@ -481,7 +485,7 @@ class EncoderDecoder(EncoderDecoderBase):
             b_t_0 = outs[0]
         else:
             b_t_0 = tuple(outs)
-        req_shape = (1, N, K)
+        req_shape = (1, M, K)
         residual_idxs = residual_idxs.view(req_shape)
         b_t_1 = torch.cat([b_tm1_1, residual_idxs], dim=0)
         return b_t_0, b_t_1, logpb_t
