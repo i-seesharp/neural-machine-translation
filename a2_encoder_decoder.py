@@ -187,9 +187,10 @@ class DecoderWithoutAttention(DecoderBase):
         #   h is of size (S, M, 2 * H)
         #   F_lens is of size (M,)
         #   xtilde_t (output) is of size (M, Itilde)
-        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]),
-                                    torch.tensor([0.]),
-                                    torch.tensor([1.]))
+        cuda = h.device
+        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]).to(cuda),
+                                    torch.tensor([0.]).to(cuda),
+                                    torch.tensor([1.]).to(cuda)).to(cuda)
         masked_x = self.embedding(E_tm1) * mask.view(-1, 1)
         return masked_x
 
@@ -252,9 +253,10 @@ class DecoderWithAttention(DecoderWithoutAttention):
 
     def get_current_rnn_input(self, E_tm1, htilde_tm1, h, F_lens):
         # Hint: Use attend() for c_t
-        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]),
-                            torch.tensor([0.]),
-                            torch.tensor([1.]))
+        cuda = h.device
+        mask = torch.where(E_tm1 == torch.tensor([self.pad_id]).to(cuda),
+                            torch.tensor([0.]).to(cuda),
+                            torch.tensor([1.]).to(cuda)).to(cuda)
         unmasked_input = self.embedding(E_tm1)
         if self.cell_type == 'lstm':
             htilde_tm1 = htilde_tm1[0]
