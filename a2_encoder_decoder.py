@@ -369,10 +369,10 @@ class DecoderWithMultiHeadAttention(DecoderWithAttention):
         h_n = self.W(h)
         htilde_n = self.Wtilde(htilde_t)
         mod_f_lens = F_lens.repeat_interleave(self.heads)
-        #new_shape = [int(h.shape[1]*self.heads), int(h.shape[-1]/self.heads)]
-        #new_h = torch.reshape(h_n, tuple([-1]+new_shape))
-        #new_htilde = torch.reshape(htilde_n, tuple(new_shape))
-        temp_c = super().attend(htilde_n, h_n, mod_f_lens)
+        new_shape = [int(h.shape[1]*self.heads), int(h.shape[-1]/self.heads)]
+        new_h = torch.reshape(h_n, tuple([-1]+new_shape))
+        new_htilde = torch.reshape(htilde_n, tuple(new_shape))
+        temp_c = super().attend(new_htilde, new_h, mod_f_lens)
         c_t = temp_c.view(h.shape[1],-1)
         c_t = self.Q(c_t)
         return c_t
