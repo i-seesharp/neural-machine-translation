@@ -97,7 +97,7 @@ def train_for_epoch(model, dataloader, optimizer, device):
         loss_sum = loss_sum + current_loss.item()
         iteration = iteration + 1
 
-        del F, F_lens, E, logits, loss
+        del F, F_lens, E, logits, current_loss
     return float(loss_sum)/float(iteration)
 
 def compute_batch_total_bleu(E_ref, E_cand, target_sos, target_eos):
