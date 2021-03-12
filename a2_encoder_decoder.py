@@ -150,13 +150,13 @@ class DecoderWithoutAttention(DecoderBase):
         #   is either initialized, or t > 1.
         # 4. The output of an LSTM cell is a tuple (h, c), but a GRU cell or an
         #   RNN cell will only output h.
-        input_t = self.get_current_rnn_input(E_tm1, htilde_tm1, h, F_lens)
-        hidden_t = self.get_current_hidden_state(input_t, htilde_tm1)
-
-        logits_t = self.get_current_logits(hidden_t)
-
-        return logits_t, hidden_t
-
+        xtilde_t = self.get_current_rnn_input(E_tm1, htilde_tm1, h, F_lens)
+        h_t = self.get_current_hidden_state(xtilde_t, htilde_tm1)
+        if self.cell_type == "lstm":
+            logits_t = self.get_current_logits(h_t[0])
+        else:
+            logits_t = self.get_current_logits(h_t)
+        return logits_t, h_t
 
     def get_first_hidden_state(self, h, F_lens):
         # Recall:
