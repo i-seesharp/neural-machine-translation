@@ -402,7 +402,8 @@ class EncoderDecoder(EncoderDecoderBase):
                                     word_embedding_size=self.word_embedding_size,
                                     hidden_state_size=self.encoder_hidden_size * 2,
                                     pad_id=self.target_eos,
-                                    cell_type=self.cell_type)
+                                    cell_type=self.cell_type,
+                                    heads=self.heads)
         self.decoder.init_submodules()
 
     def get_logits_for_teacher_forcing(self, h, F_lens, E):
